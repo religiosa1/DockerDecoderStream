@@ -1,0 +1,27 @@
+{
+  "name": "docker-logs-decoder",
+  "version": "1.0.0",
+  "description": "JS/TS decode for Docker logs stream",
+  "main": "dist/index.js",
+  "scripts": {
+    "test": "jest"
+  },
+  "keywords": [
+    "Docker",
+    "Stream",
+    "Logs",
+    "Decoder"
+  ],
+  "author": "Viacheslav Azarov",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/jest": "^29.5.5",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.1",
+    "tsup": "^7.2.0",
+    "typescript": "^5.2.2"
+  },
+  "dependencies": {
+    "eventemitter3": "^5.0.1"
+  }
+}
