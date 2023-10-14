@@ -1,10 +1,15 @@
 # Docker Logs Stream decoder
 
-Efficient JS decoder for Docker log streams. Can work in a browser or on the backend.
-[Streams API](https://developer.mozilla.org/en-US/docs/Web/API/Streams_API) is supported on node 18+, 
-absolute minimum version is node 12+, as this library uses [private class features](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Classes/Private_class_fields);
+Fast and efficient and JS decoder for Docker log streams using 
+[Streams API](https://developer.mozilla.org/en-US/docs/Web/API/Streams_API). 
+Supports bring-your-own-buffer zero memmory allocation data copying between streams.
 
-It's only runtime dependency is [eventemitter3](https://github.com/primus/eventemitter3) to have isomorphic interface in node and browser.
+Can work in a browser or on the backend.
+Streams API is supported on node 18+, bare-minimum eventemitter version can work in node 12.
+[Can I use Streams API?](https://caniuse.com/mdn-api_writablestream)
+
+8KiB minified. 
+Its only runtime dependency is [eventemitter3](https://github.com/primus/eventemitter3) to have isomorphic interface in node and browser.
 
 <!-- ## Installation
 
@@ -25,7 +30,7 @@ if (!response.body) {
 }
 const reader = response.body
   .pipeThrough(new DockerDecoderStream())
-  .pipeThrough(new TextDecoderStream()) // By default reading "stdout".
+  .pipeThrough(new TextDecoderStream()) // By default reading "stdout"
   .getReader();
 
 for (; ;) {
@@ -37,7 +42,7 @@ for (; ;) {
 }
 
 // you can specify the stream you're interested in in constructor:
-const stderrStream = new DockerDecoderStream("stderr");
+const stderrStream = new DockerDecoderStream("stdin");
 ```
 
 Some bright day we will be able to do:
@@ -49,20 +54,23 @@ But for now this is blocked in chrome: https://bugs.chromium.org/p/chromium/issu
 ### Multiplexed streams usage
 
 ```ts
-const dockerStreamDecoder = new DockerDecoderStream();
-response.body?.pipeTo(dockerStreamDecoder.writable);
-const stdoutReader = dockerStreamDecoder.stdout.pipeThrough(new TextDecoderStream("utf-8")).getReader();
-const stderrReader = dockerStreamDecoder.stderr.pipeThrough(new TextDecoderStream("utf-8")).getReader();
+import { DockerDecoderStream, mixDownReaders } from "docker-decoder-stream";
 
-for (; ;) {
-  const { value, done } = await Promise.race([ 
-    stdoutReader.read(), 
-    stderrReader.read(),
-  ]);
-  if (value !== undefined) {
-    // Do something with your text value
+const response = await fetch("/v1.43/containers/{id}/logs?follow=true");
+if (!response.body) {
+  throw new Error();
+}
+const dockerStreamDecoder = new DockerDecoderStream();
+// specific IO streams from docker are available as getters on DockerDecoderStream
+const stdout = dockerStreamDecoder.stdout.pipeThrough(new TextDecoderStream("utf-8")).getReader();
+const stderr = dockerStreamDecoder.stderr.pipeThrough(new TextDecoderStream("utf-8")).getReader();
+response.body?.pipeTo(dockerStreamDecoder.writable);
+
+// mixDownReaders helper provides an async iterator to get all of the chunks from multiple ReadableStreams
+for await (const [type, value] of mixDownReaders({ stdout, stderr })) {
+  if (type === "stdout") {
+    console.log("here's your stdout value", value);
   }
-  if (done) { break; }
 }
 ```
 
@@ -77,7 +85,7 @@ const data = new DockerDecoder().decode(dockerLogBlob);
 const text = new TextDecoder().decode(data);
 ```
 
-### Barebone eventemitter usage (when ReadableStream isn't supproted: old node or custom use-cases)
+### Barebone eventemitter usage (when ReadableStream isn't availabe: old node or custom use-cases)
 
 ```ts
 import { DockerDecoder } from "docker-decoder-stream";

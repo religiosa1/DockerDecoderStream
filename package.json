@@ -3,7 +3,16 @@
   "version": "1.0.0",
   "description": "JS/TS decode for Docker logs stream",
   "main": "dist/index.js",
+  "es2015": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    }
+  },
   "scripts": {
+    "build": "tsup --dts",
     "test": "jest"
   },
   "keywords": [

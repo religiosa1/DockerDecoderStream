@@ -1,19 +1,22 @@
+interface TaggedReadResult<TKey, T> {
+  done: boolean;
+  value: readonly [TKey, T | undefined];
+}
+
 export async function* mixDownReaders<TKey extends string, T>(
-  readers: Record<TKey, ReadableStreamReader<T>>
+  readers: Record<TKey, ReadableStreamDefaultReader<T>>
 ) {
-  const promisesMap = new Map<TKey, Promise<{
-    done: boolean;
-    value: readonly [TKey, T | undefined];
-  }>>(
-    Object.keys(readers).map(key => [key as TKey, armPromise(key as TKey)] as const)
+  const promisesMap = new Map<TKey, Promise<TaggedReadResult<TKey, T>>>(
+    Object.keys(readers).map(key => {
+      const tkey = key as TKey;
+      return [tkey, readWithTag(readers[tkey], tkey)];
+    })
   );
 
   do {
-    const { done, value: [key, payload] } = await Promise.race(
-      promisesMap.values()
-    );
+    const { done, value: [key, payload] } = await Promise.race(promisesMap.values());
     if (!done) {
-      promisesMap.set(key, armPromise(key));
+      promisesMap.set(key, readWithTag(readers[key], key));
     } else {
       promisesMap.delete(key);
     }
@@ -22,11 +25,9 @@ export async function* mixDownReaders<TKey extends string, T>(
     }
   } while (promisesMap.size);
 
-  function armPromise(key: TKey) {
-    const reader = readers[key] as ReadableStreamDefaultReader<T>;
-    const prms = reader.read().then(({ value, done }) => {
-      return { done, value: [key, value] as const };
+  function readWithTag(reader: ReadableStreamDefaultReader<T>, tag: TKey): Promise<TaggedReadResult<TKey, T>> {
+    return reader.read().then(({ value, done }) => {
+      return { done, value: [tag, value] as const };
     });
-    return prms;
   }
 }

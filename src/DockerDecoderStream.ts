@@ -81,6 +81,7 @@ export class DockerDecoderStream {
           .on("end", stack.adopt((type, frame) => {
             enqueue(type, frame);
             controller.close();
+            stack.dispose();
           }, (handler) => this.#decoder.off("end", handler)))
           .on("error", stack.adopt(
             (err) => { controller.error(err) },

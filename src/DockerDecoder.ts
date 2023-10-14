@@ -20,8 +20,8 @@ const HEADER_LENGTH = 8;
  * header := [8]byte{STREAM_TYPE, 0, 0, 0, SIZE1, SIZE2, SIZE3, SIZE4}
  */
 export class DockerDecoder extends EventEmitter<{
-  data: (type: "stdin" | "stdout" | "stderr", payload: Uint8Array) => any;
-  end: (type?: "stdin" | "stdout" | "stderr", payload?: Uint8Array) => any;
+  data: (type: IOStreamType, payload: Uint8Array) => any;
+  end: (type?: IOStreamType, payload?: Uint8Array) => any;
   error: (err: unknown) => any;
 }> {
   static readonly defaultBufferSize = 8192;
@@ -29,7 +29,7 @@ export class DockerDecoder extends EventEmitter<{
   #state: DecoderState = DecoderState.header;
   #nBytesRead = 0;
   #nBytesReadInFrameTotal = 0;
-  #frameType: "stdin" | "stdout" | "stderr" = "stdout";
+  #frameType: IOStreamType = "stdout";
   #frameLength = 0;
   readonly #buffer: Uint8Array;
 
