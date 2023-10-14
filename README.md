@@ -9,7 +9,7 @@ It's only runtime dependency is [eventemitter3](https://github.com/primus/evente
 <!-- ## Installation
 
 ```sh
-npm install docker-stream-decoder
+npm install docker-decoder-stream
 ``` -->
 
 ## Usage

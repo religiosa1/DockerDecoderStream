@@ -1,5 +1,5 @@
 {
-  "name": "docker-logs-decoder",
+  "name": "docker-decoder-stream",
   "version": "1.0.0",
   "description": "JS/TS decode for Docker logs stream",
   "main": "dist/index.js",
