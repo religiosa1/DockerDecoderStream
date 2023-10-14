@@ -17,13 +17,15 @@ npm install docker-decoder-stream
 ### Stream usage
 
 ```ts
+import { DockerDecoderStream } from "docker-decoder-stream";
+
 const response = await fetch("/v1.43/containers/{id}/logs?follow=true");
 if (!response.body) {
   throw new Error();
 }
 const reader = response.body
-  .pipeThrough(new DockerStreamDecoder())
-  .pipeThrough(new TextDecoderStream())
+  .pipeThrough(new DockerDecoderStream())
+  .pipeThrough(new TextDecoderStream()) // By default reading "stdout".
   .getReader();
 
 for (; ;) {
@@ -34,6 +36,8 @@ for (; ;) {
   if (done) { break; }
 }
 
+// you can specify the stream you're interested in in constructor:
+const stderrStream = new DockerDecoderStream("stderr");
 ```
 
 Some bright day we will be able to do:
@@ -45,13 +49,8 @@ But for now this is blocked in chrome: https://bugs.chromium.org/p/chromium/issu
 ### Multiplexed streams usage
 
 ```ts
-const response = await fetch("/v1.43/containers/{id}/logs?follow=true");
-if (!response.body) {
-  throw new Error();
-}
-const dockerStreamDecoder = new DockerStreamDecoder();
-
-response.body?.pipeTo(dockerStreamDecoder.writable)
+const dockerStreamDecoder = new DockerDecoderStream();
+response.body?.pipeTo(dockerStreamDecoder.writable);
 const stdoutReader = dockerStreamDecoder.stdout.pipeThrough(new TextDecoderStream("utf-8")).getReader();
 const stderrReader = dockerStreamDecoder.stderr.pipeThrough(new TextDecoderStream("utf-8")).getReader();
 
@@ -67,12 +66,23 @@ for (; ;) {
 }
 ```
 
-### Barebone usage (old node or custom use-cases)
+### Sync/no-stream usage
+```ts
+import { DockerDecoder } from "docker-decoder-stream";
+
+const dockerLogBlob = await fetch("/v1.43/containers/{id}/logs")
+  .then(response => response.blob());
+
+const data = new DockerDecoder().decode(dockerLogBlob);
+const text = new TextDecoder().decode(data);
+```
+
+### Barebone eventemitter usage (when ReadableStream isn't supproted: old node or custom use-cases)
 
 ```ts
-import { DockerLogsDecoder } from "docker-logs-decoder";
+import { DockerDecoder } from "docker-decoder-stream";
 
-const decoder = new DockerLogDecoder();
+const decoder = new DockerDecoder();
 const stdoutDecoder = new TextDecoder("utf-8");
 const stderrDecoder = new TextDecoder("utf-8");
 
@@ -84,13 +94,13 @@ decoder
     if (type === "stdout") {
       const text = stdoutDecoder.decode(payload, { stream: true });
     }
-    // Use separate decoders, as you can get mangled unicode chars, if they're spread between the chunks!
+    // Use separate decoders to prevent corruption of Unicode chars when they're spread across multiple chunks!
     if (type === "stderr") {
       const text = stderrDecoder.decode(payload, { stream: true });
     }
   })
   .on("end", (type, payload) => {
-    // Decoder can give partially read frame, if it was aborted in the middle of the stream's body
+    // Decoder may produce a partially read frame, if it was aborted in the middle of the stream's body
     if (type === "stdout") {
       const text = stdoutDecoder.decode(payload, { stream: false });
     }
@@ -98,8 +108,8 @@ decoder
   .on("error", (err) => { controller.abort(err) });
 
 const response = await fetch("/v1.43/containers/{id}/logs?follow=true", { signal: controller.signal });
-
 const reader = response.body.getReader();
+
 for (; ;) {
   const { value, done } = await reader.read();
   if (value !== undefined) {

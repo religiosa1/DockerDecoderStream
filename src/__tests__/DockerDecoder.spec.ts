@@ -1,11 +1,9 @@
-import { DockerDecoder } from "../DockerDecoder";
+import { DockerDecoder, IOStreamType } from "../DockerDecoder";
 import { createDockerFrame } from "./createDockerFrame";
 
-type StreamType = "stdin" | "stdout" | "stderr";
-
-describe("DockerLogsDecoder", () => {
-  const dataHandler = jest.fn((type: StreamType, p: Uint8Array) => ({ type, payload: p.slice() }));
-  const endHandler = jest.fn((type?: StreamType, p?: Uint8Array) => type && p && ({ type, payload: p.slice() }));
+describe("DockerDecoder", () => {
+  const dataHandler = jest.fn((type: IOStreamType, p: Uint8Array) => ({ type, payload: p.slice() }));
+  const endHandler = jest.fn((type?: IOStreamType, p?: Uint8Array) => type && p && ({ type, payload: p.slice() }));
   const errorHandler = jest.fn();
 
   function createDecoder() {
@@ -23,7 +21,7 @@ describe("DockerLogsDecoder", () => {
     it("parses the supplied chunk", () => {
       const data = [3, 2, 1, 6, 7];
       const type = "stdin";
-      const frame = createDockerFrame(new Uint8Array(data), type);
+      const frame = createDockerFrame(type, data);
 
       const decoder = createDecoder();
 
@@ -40,11 +38,11 @@ describe("DockerLogsDecoder", () => {
     it("parses two small frames one by one in one chunk", () => {
       const data1 = [3, 2, 1, 6, 7];
       const type1 = "stdin";
-      const frame1 = createDockerFrame(new Uint8Array(data1), type1);
+      const frame1 = createDockerFrame(type1, data1);
 
       const data2 = [1, 2, 3, 4, 5];
       const type2 = "stderr";
-      const frame2 = createDockerFrame(new Uint8Array(data2), type2);
+      const frame2 = createDockerFrame(type2, data2);
 
       const chunk = new Uint8Array(frame1.length + frame2.length);
       chunk.set(frame1);
@@ -71,7 +69,7 @@ describe("DockerLogsDecoder", () => {
     it("parses one large frame (bigger than the buffer size)", () => {
       const data = Array(1000).fill([1, 2, 3, 4, 5, 6, 7, 8, 9, 0]).flat();
       const type = "stderr";
-      const frame = createDockerFrame(new Uint8Array(data), type);
+      const frame = createDockerFrame(type, data);
       expect(DockerDecoder.defaultBufferSize).toBeLessThan(data.length);
 
       const decoder = createDecoder();
@@ -96,8 +94,8 @@ describe("DockerLogsDecoder", () => {
     it("omits zero-length frames in chunks, not emitting an event", () => {
       const data = [1, 2, 3, 4, 5, 6, 7, 8, 9, 0];
       const type = "stdout";
-      const frame = createDockerFrame(new Uint8Array(data), type);
-      const emptyFrame = createDockerFrame(new Uint8Array(0), "stdin");
+      const frame = createDockerFrame(type, data);
+      const emptyFrame = createDockerFrame("stdin", []);
       const chunk = new Uint8Array(emptyFrame.length + frame.length);
       chunk.set(emptyFrame);
       chunk.set(frame, emptyFrame.length);
@@ -120,11 +118,11 @@ describe("DockerLogsDecoder", () => {
     it("parses header if it is split between two chunks", () => {
       const data1 = [3, 2, 1, 6, 7];
       const type1 = "stdin";
-      const frame1 = createDockerFrame(new Uint8Array(data1), type1);
+      const frame1 = createDockerFrame(type1, data1);
 
       const data2 = [1, 2, 3, 4, 5];
       const type2 = "stderr";
-      const frame2 = createDockerFrame(new Uint8Array(data2), type2);
+      const frame2 = createDockerFrame(type2, data2);
 
       const chunk = new Uint8Array(frame1.length + frame2.length);
       chunk.set(frame1);
@@ -152,7 +150,7 @@ describe("DockerLogsDecoder", () => {
     it("continues to parse body, if it's in a separate chunk from header", () => {
       const data = [1, 2, 3, 4, 5, 6, 7, 8, 9, 0];
       const type = "stdout";
-      const frame = createDockerFrame(new Uint8Array(data), type);
+      const frame = createDockerFrame(type, data);
 
       const decoder = createDecoder();
       decoder.push(frame.slice(0, 8));
@@ -171,7 +169,7 @@ describe("DockerLogsDecoder", () => {
     it("continues to parse body, if it's split in two chunks", () => {
       const data = [1, 2, 3, 4, 5, 6, 7, 8, 9, 0];
       const type = "stdout";
-      const frame = createDockerFrame(new Uint8Array(data), type);
+      const frame = createDockerFrame(type, data);
 
       const decoder = createDecoder();
       decoder.push(frame.slice(0, 8 + 4));
@@ -193,7 +191,7 @@ describe("DockerLogsDecoder", () => {
     it("emits an 'end' with zero-length data when 'close' is called in the start of the body", () => {
       const data = [3, 2, 1, 6, 7];
       const type = "stdin";
-      const frame = createDockerFrame(new Uint8Array(data), type);
+      const frame = createDockerFrame(type, data);
 
       const decoder = createDecoder();
       decoder.push(frame.slice(0, 8));
@@ -211,7 +209,7 @@ describe("DockerLogsDecoder", () => {
     it("emits an 'end' event when with data when 'close' is called in a middle of a body", () => {
       const data = [3, 2, 1, 6, 7];
       const type = "stdin";
-      const frame = createDockerFrame(new Uint8Array(data), type);
+      const frame = createDockerFrame(type, data);
 
       const decoder = createDecoder();
       decoder.push(frame.slice(0, -2));
@@ -230,7 +228,7 @@ describe("DockerLogsDecoder", () => {
     it("emits an 'end' with no argument, when 'close' is called in the middle of header parsing", () => {
       const data = [3, 2, 1, 6, 7];
       const type = "stdin";
-      const frame = createDockerFrame(new Uint8Array(data), type);
+      const frame = createDockerFrame(type, data);
 
       const decoder = createDecoder();
       decoder.push(frame.slice(0, 4));
@@ -251,7 +249,7 @@ describe("DockerLogsDecoder", () => {
     it("emits an 'error' event if malformed header is encountered", () => {
       const data = [3, 2, 1, 6, 7];
       const type = "stdin";
-      const frame = createDockerFrame(new Uint8Array(data), type);
+      const frame = createDockerFrame(type, data);
       frame[0] = 123;
 
       const decoder = createDecoder();
