@@ -6,8 +6,7 @@ const DockerBinaryStreamType = {
 
 const HEADER_LENGTH = 8;
 
-/** Creates a docker strea frame.
- * Service function to use in test-cases. */
+/** Creates a docker strea frame. */
 export function createDockerFrame(
   payload: Uint8Array | string,
   type: "stdin" | "stdout" | "stderr" = "stdout"

@@ -79,20 +79,20 @@ const stderrDecoder = new TextDecoder("utf-8");
 const controller = new AbortController();
 
 decoder
-  .on("data", (frame) => {
+  .on("data", (type, payload) => {
     // Do something with the Uint8Array content here
-    if (frame.type === "stdout") {
-      const text = stdoutDecoder.decode(frame.payload, { stream: true });
+    if (type === "stdout") {
+      const text = stdoutDecoder.decode(payload, { stream: true });
     }
     // Use separate decoders, as you can get mangled unicode chars, if they're spread between the chunks!
-    if (frame.type === "stderr") {
-      const text = stderrDecoder.decode(frame.payload, { stream: true });
+    if (type === "stderr") {
+      const text = stderrDecoder.decode(payload, { stream: true });
     }
   })
-  .on("end", (frame) => {
+  .on("end", (type, payload) => {
     // Decoder can give partially read frame, if it was aborted in the middle of the stream's body
-    if (frame?.type === "stdout") {
-      const text = stdoutDecoder.decode(frame.payload, { stream: false });
+    if (type === "stdout") {
+      const text = stdoutDecoder.decode(payload, { stream: false });
     }
   })
   .on("error", (err) => { controller.abort(err) });

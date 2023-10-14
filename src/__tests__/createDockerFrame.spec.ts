@@ -1,4 +1,4 @@
-import { createDockerFrame } from "../createDockerFrame";
+import { createDockerFrame } from "./createDockerFrame";
 import { parseDockerFrameLength, parseDockerFrameType } from "../parseDockerFrame";
 
 const HEADER_LENGTH = 8

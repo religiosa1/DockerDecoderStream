@@ -1,11 +1,9 @@
 import { EventEmitter } from "eventemitter3";
 import { assert } from "./assert";
 import { parseDockerFrameLength, parseDockerFrameType } from "./parseDockerFrame";
+import { concatUint8Arrays } from "./concatUint8Arrays";
 
-export interface DockerStreamFrame {
-  type: "stdin" | "stdout" | "stderr",
-  payload: Uint8Array;
-}
+export type IOStreamType = "stdin" | "stdout" | "stderr";
 
 const DecoderState = {
   header: 0,
@@ -22,19 +20,17 @@ const HEADER_LENGTH = 8;
  * header := [8]byte{STREAM_TYPE, 0, 0, 0, SIZE1, SIZE2, SIZE3, SIZE4}
  */
 export class DockerDecoder extends EventEmitter<{
-  data: (frame: DockerStreamFrame) => any;
-  end: (frame: DockerStreamFrame | undefined) => any;
+  data: (type: "stdin" | "stdout" | "stderr", payload: Uint8Array) => any;
+  end: (type?: "stdin" | "stdout" | "stderr", payload?: Uint8Array) => any;
   error: (err: unknown) => any;
 }> {
   static readonly defaultBufferSize = 8192;
 
   #state: DecoderState = DecoderState.header;
-  #nBytes = 0;
-  #nFrameBytesTotal = 0;
-  readonly #headerData: DockerFrameHeader = {
-    type: "stdout",
-    frameLength: 0,
-  };
+  #nBytesRead = 0;
+  #nBytesReadInFrameTotal = 0;
+  #frameType: "stdin" | "stdout" | "stderr" = "stdout";
+  #frameLength = 0;
   readonly #buffer: Uint8Array;
 
   get bufferLength(): number {
@@ -52,67 +48,91 @@ export class DockerDecoder extends EventEmitter<{
     this.#buffer = new Uint8Array(bufferLength);
   }
 
+  decode(chunk: Uint8Array): Record<IOStreamType, Uint8Array> {
+    const chunks: Record<IOStreamType, Uint8Array[]> = {
+      stdin: [],
+      stdout: [],
+      stderr: [],
+    };
+    const enqueue = (type?: IOStreamType, payload?: Uint8Array) => {
+      if (!type || !payload) { return }
+      chunks[type].push(payload);
+    };
+    this.#decode(chunk, enqueue);
+    this.#close(enqueue);
+
+    return {
+      stdin: concatUint8Arrays(chunks.stdin),
+      stdout: concatUint8Arrays(chunks.stdin),
+      stderr: concatUint8Arrays(chunks.stdin),
+    }
+  }
+
   push(chunk: Uint8Array): void {
     try {
-      while (chunk.length) {
-        const length = chunk.length;
-        if (this.#state === DecoderState.header) {
-          const bytesToRead = Math.min(HEADER_LENGTH - this.#nBytes, chunk.length);
-          assert(bytesToRead > 0, "Error during header chunk processing");
-          this.#buffer.set(chunk.subarray(0, bytesToRead), this.#nBytes);
-          chunk = chunk.subarray(bytesToRead);
-          this.#nBytes += bytesToRead;
-          if (this.#nBytes >= HEADER_LENGTH) {
-            this.#headerData.type = parseDockerFrameType(this.#buffer);
-            this.#headerData.frameLength = parseDockerFrameLength(this.#buffer);
-            this.#nBytes = 0;
-            if (this.#headerData.frameLength) {
-              this.#state = DecoderState.payload;
-            }
-          }
-        }
-        if (this.#state === DecoderState.payload && chunk.length) {
-          const bytesToRead = Math.min(
-            this.#headerData.frameLength - this.#nBytes,
-            this.#buffer.length - this.#nBytes,
-            chunk.length
-          );
-          assert(bytesToRead > 0, `DockerStreamDecoder have some data to read (${bytesToRead} > 0)`);
-          assert(this.#nBytes < this.#buffer.length, `Buffer has enough space to acommodate the data (${this.#nBytes} < ${this.#buffer.length})`);
-          this.#buffer.set(chunk.subarray(0, bytesToRead), this.#nBytes);
-          chunk = chunk.subarray(bytesToRead);
-          this.#nBytes += bytesToRead;
-          this.#nFrameBytesTotal += bytesToRead;
-          const frameCompleted = this.#nFrameBytesTotal >= this.#headerData.frameLength;
-          if (frameCompleted || this.#nBytes >= this.#buffer.length) {
-            const data: DockerStreamFrame = {
-              type: this.#headerData.type,
-              payload: this.#buffer.subarray(0, this.#nBytes),
-            };
-            if (frameCompleted) {
-              this.#state = DecoderState.header;
-              this.#nFrameBytesTotal = 0;
-            }
-            this.#nBytes = 0;
-            this.emit("data", data);
-          }
-        }
-        assert(length > chunk.length, `Data processed during DockerStreamDecoder iteration (${length} > ${chunk.length})`);
-      }
+      this.#decode(chunk, (type, payload) => this.emit("data", type, payload));
     } catch (e) {
       this.emit("error", e);
     }
   }
 
-  close() {
-    this.emit("end", this.#state === DecoderState.payload ? {
-      type: this.#headerData.type,
-      payload: this.#buffer.subarray(0, this.#nBytes)
-    } : undefined);
+  close(): void {
+    this.#close((type, payload) => this.emit("end", type, payload));
   }
-}
 
-interface DockerFrameHeader {
-  type: "stdin" | "stdout" | "stderr",
-  frameLength: number;
+  #close(enqueue: (type?: IOStreamType, payload?: Uint8Array) => void): void {
+    if (this.#state === DecoderState.payload) {
+      enqueue(this.#frameType, this.#buffer.subarray(0, this.#nBytesRead));
+    } else {
+      enqueue();
+    }
+    this.#nBytesRead = 0;
+    this.#nBytesReadInFrameTotal = 0;
+    this.#state = DecoderState.header;
+  }
+
+  #decode(chunk: Uint8Array, enqueue: (type: IOStreamType, payload: Uint8Array) => void): void {
+    while (chunk.length) {
+      const length = chunk.length;
+      if (this.#state === DecoderState.header) {
+        const bytesToRead = Math.min(HEADER_LENGTH - this.#nBytesRead, chunk.length);
+        assert(bytesToRead > 0, "Error during header chunk processing");
+        this.#buffer.set(chunk.subarray(0, bytesToRead), this.#nBytesRead);
+        chunk = chunk.subarray(bytesToRead);
+        this.#nBytesRead += bytesToRead;
+        if (this.#nBytesRead >= HEADER_LENGTH) {
+          this.#frameType = parseDockerFrameType(this.#buffer);
+          this.#frameLength = parseDockerFrameLength(this.#buffer);
+          this.#nBytesRead = 0;
+          if (this.#frameLength) {
+            this.#state = DecoderState.payload;
+          }
+        }
+      }
+      if (this.#state === DecoderState.payload && chunk.length) {
+        const bytesToRead = Math.min(
+          this.#frameLength - this.#nBytesRead,
+          this.#buffer.length - this.#nBytesRead,
+          chunk.length
+        );
+        assert(bytesToRead > 0, `DockerStreamDecoder have some data to read (${bytesToRead} > 0)`);
+        assert(this.#nBytesRead < this.#buffer.length, `Buffer has enough space to acommodate the data (${this.#nBytesRead} < ${this.#buffer.length})`);
+        this.#buffer.set(chunk.subarray(0, bytesToRead), this.#nBytesRead);
+        chunk = chunk.subarray(bytesToRead);
+        this.#nBytesRead += bytesToRead;
+        this.#nBytesReadInFrameTotal += bytesToRead;
+        const frameCompleted = this.#nBytesReadInFrameTotal >= this.#frameLength;
+        if (frameCompleted || this.#nBytesRead >= this.#buffer.length) {
+          const payload = this.#buffer.subarray(0, this.#nBytesRead);
+          this.#nBytesRead = 0;
+          if (frameCompleted) {
+            this.#state = DecoderState.header;
+            this.#nBytesReadInFrameTotal = 0;
+          }
+          enqueue(this.#frameType, payload);
+        }
+      }
+      assert(length > chunk.length, `Data processed during DockerStreamDecoder iteration (${length} > ${chunk.length})`);
+    }
+  }
 }

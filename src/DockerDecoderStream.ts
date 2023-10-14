@@ -76,16 +76,16 @@ export class DockerDecoderStream {
     return new ReadableStream<Uint8Array>({
       start: (controller) => {
         this.#decoder.on("data", stack.adopt(
-          (frame) => {
-            if (frame.type !== type) { return }
+          (frameType, payload) => {
+            if (frameType !== type) { return }
             const view = isReadableByteStreamController(controller) && controller.byobRequest?.view;
 
-            if (view && view.byteLength && view.byteLength - view.byteOffset >= frame.payload.length) {
-              const { payload, payload: { length } } = frame;
+            if (view && view.byteLength && view.byteLength - view.byteOffset >= payload.length) {
+              const { length } = payload;
               new Uint8Array(view.buffer, view.byteOffset, view.byteLength).set(payload);
               controller.byobRequest.respond(length);
             } else {
-              controller.enqueue(frame.payload);
+              controller.enqueue(payload);
             }
           },
           (handler) => this.#decoder.off("data", handler),
@@ -104,6 +104,8 @@ export class DockerDecoderStream {
   }
 }
 
-function isReadableByteStreamController(ctrlr: ReadableStreamController<Uint8Array>): ctrlr is ReadableByteStreamController {
+function isReadableByteStreamController(
+  ctrlr: ReadableStreamController<Uint8Array>
+): ctrlr is ReadableByteStreamController {
   return ("byobRequest" in ctrlr);
 }

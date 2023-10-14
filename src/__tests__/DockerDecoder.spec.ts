@@ -1,9 +1,11 @@
-import { DockerDecoder, DockerStreamFrame } from "../DockerDecoder";
-import { createDockerFrame } from "../createDockerFrame";
+import { DockerDecoder } from "../DockerDecoder";
+import { createDockerFrame } from "./createDockerFrame";
+
+type StreamType = "stdin" | "stdout" | "stderr";
 
 describe("DockerLogsDecoder", () => {
-  const dataHandler = jest.fn((v: DockerStreamFrame) => ({ type: v.type, payload: v.payload.slice() }));
-  const endHandler = jest.fn((v?: DockerStreamFrame) => v && ({ type: v.type, payload: v.payload.slice() }));
+  const dataHandler = jest.fn((type: StreamType, p: Uint8Array) => ({ type, payload: p.slice() }));
+  const endHandler = jest.fn((type?: StreamType, p?: Uint8Array) => type && p && ({ type, payload: p.slice() }));
   const errorHandler = jest.fn();
 
   function createDecoder() {
@@ -241,6 +243,8 @@ describe("DockerLogsDecoder", () => {
 
       expect(result).toBeUndefined();
     });
+
+    it.todo("resets decodes state, when 'close' is called");
   });
 
   describe("error handling", () => {
@@ -258,5 +262,10 @@ describe("DockerLogsDecoder", () => {
       expect(errorHandler).toBeCalledTimes(1);
       expect(errorHandler).toBeCalledWith(expect.any(Error))
     });
+  });
+
+  describe("decode calls", () => {
+    it.todo("decodes a passed chunk");
+    it.todo("throws an error, if docker header is malformed");
   });
 });
