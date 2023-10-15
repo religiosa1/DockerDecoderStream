@@ -1,4 +1,5 @@
 import { DockerDecoder, IOStreamType } from "../DockerDecoder";
+import { concatUint8Arrays } from "../concatUint8Arrays";
 import { createDockerFrame } from "./createDockerFrame";
 
 describe("DockerDecoder", () => {
@@ -242,7 +243,26 @@ describe("DockerDecoder", () => {
       expect(result).toBeUndefined();
     });
 
-    it.todo("resets decodes state, when 'close' is called");
+    it("resets decodes state, when 'close' is called", () => {
+      const data = [3, 2, 1, 6, 7];
+      const type = "stdin";
+      const frame = createDockerFrame(type, data);
+
+      const decoder = createDecoder();
+      decoder.push(frame.slice(0, -2));
+      decoder.close();
+      decoder.push(frame);
+
+
+      expect(dataHandler).toBeCalledTimes(1);
+      expect(endHandler).toBeCalledTimes(1);
+      expect(errorHandler).not.toBeCalled();
+      const result = dataHandler.mock.results[0].value;
+
+      expect(result.type).toBe(type);
+      expect(result.payload.length).toBe(data.length);
+      expect(Array.from(result.payload)).toEqual(data);
+    });
   });
 
   describe("error handling", () => {
@@ -260,10 +280,77 @@ describe("DockerDecoder", () => {
       expect(errorHandler).toBeCalledTimes(1);
       expect(errorHandler).toBeCalledWith(expect.any(Error))
     });
+
+    it("negative buffer values in costructor results in an error", () => {
+      expect(() => new DockerDecoder(9.75)).toThrow(TypeError);
+      expect(() => new DockerDecoder(7)).toThrow(RangeError);
+    });
   });
 
   describe("decode calls", () => {
-    it.todo("decodes a passed chunk");
-    it.todo("throws an error, if docker header is malformed");
+    it("decodes a passed chunk", () => {
+      const data = [3, 2, 1, 6, 7];
+      const type = "stdin";
+      const frame = createDockerFrame(type, data);
+
+      const result = new DockerDecoder().decode(frame);
+
+      expect(Array.from(result.stdin)).toEqual(data);
+      expect(Array.from(result.stdout)).toEqual([]);
+      expect(Array.from(result.stderr)).toEqual([]);
+    });
+
+    it("decodes multiple frames in one chunk", () => {
+      const chunk = concatUint8Arrays([
+        createDockerFrame("stdout", [3, 2, 1]),
+        createDockerFrame("stderr", [5]),
+        createDockerFrame("stdout", [6, 7]),
+        createDockerFrame("stdin", []),
+        createDockerFrame("stdin", []),
+        createDockerFrame("stderr", [5]),
+        createDockerFrame("stderr", [5]),
+      ]);
+
+      const result = new DockerDecoder().decode(chunk);
+
+      expect(Array.from(result.stdin)).toEqual([]);
+      expect(Array.from(result.stdout)).toEqual([3, 2, 1, 6, 7]);
+      expect(Array.from(result.stderr)).toEqual([5, 5, 5]);
+    });
+
+    it("decodes partially read frames at the end", () => {
+      const chunk = concatUint8Arrays([
+        createDockerFrame("stdout", [3, 2, 1]),
+        createDockerFrame("stderr", [5]),
+        createDockerFrame("stdout", [6, 7, 1]),
+      ]);
+
+      const result = new DockerDecoder().decode(chunk.subarray(0, -1));
+
+      expect(Array.from(result.stdin)).toEqual([]);
+      expect(Array.from(result.stdout)).toEqual([3, 2, 1, 6, 7]);
+      expect(Array.from(result.stderr)).toEqual([5]);
+    });
+
+
+    it("incomplete chunk returns nothing", () => {
+      const frame = createDockerFrame("stdin", [1, 2, 3]);
+
+      const result = new DockerDecoder().decode(frame.slice(0, 3));
+
+      expect(Array.from(result.stdin)).toEqual([]);
+      expect(Array.from(result.stdout)).toEqual([]);
+      expect(Array.from(result.stderr)).toEqual([]);
+    });
+
+    it("throws an error, if docker header is malformed", () => {
+      const data = [3, 2, 1, 6, 7];
+      const type = "stdin";
+      const frame = createDockerFrame(type, data);
+      frame[0] = 123;
+
+      const decoder = new DockerDecoder();
+      expect(() => decoder.decode(frame)).toThrow();
+    });
   });
 });

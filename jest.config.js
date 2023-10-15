@@ -2,6 +2,4 @@
 module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',
-  modulePathIgnorePatterns: ["build"],
-  moduleDirectories: ['node_modules', __dirname],
 };

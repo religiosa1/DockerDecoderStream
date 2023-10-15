@@ -42,8 +42,8 @@ export class DockerDecoder extends EventEmitter<{
     if (!Number.isInteger(bufferLength)) {
       throw new TypeError("Buffer length must be an integer");
     }
-    if (bufferLength <= 0) {
-      throw new RangeError("Buffer length cannot be <= 0");
+    if (bufferLength <= HEADER_LENGTH) {
+      throw new RangeError(`Buffer length cannot be <= ${HEADER_LENGTH}`);
     }
     this.#buffer = new Uint8Array(bufferLength);
   }
@@ -56,15 +56,15 @@ export class DockerDecoder extends EventEmitter<{
     };
     const enqueue = (type?: IOStreamType, payload?: Uint8Array) => {
       if (!type || !payload) { return }
-      chunks[type].push(payload);
+      chunks[type].push(payload.slice());
     };
     this.#decode(chunk, enqueue);
     this.#close(enqueue);
 
     return {
       stdin: concatUint8Arrays(chunks.stdin),
-      stdout: concatUint8Arrays(chunks.stdin),
-      stderr: concatUint8Arrays(chunks.stdin),
+      stdout: concatUint8Arrays(chunks.stdout),
+      stderr: concatUint8Arrays(chunks.stderr),
     }
   }
 
