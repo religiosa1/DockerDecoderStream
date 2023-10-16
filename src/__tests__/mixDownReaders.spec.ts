@@ -2,6 +2,9 @@ import { IOStreamType } from "../DockerDecoder";
 import { DockerDecoderStream } from "../DockerDecoderStream";
 import { mixDownReaders } from "../mixDownReaders";
 import { DockerReadableStreamMock } from "./DockerReadableStreamMock";
+import { isOldNode } from "./isOldNode";
+
+if (isOldNode()) test.only("Skipping mixDownReaders tests in node < 18", () => { });
 
 describe("mixDownReaders", () => {
   it("allows to get a ReadableStream for each IOStream in DockerStream", async () => {

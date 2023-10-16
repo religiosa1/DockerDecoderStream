@@ -1,5 +1,8 @@
 import { DockerDecoderStream } from "../DockerDecoderStream";
 import { DockerReadableStreamMock } from "./DockerReadableStreamMock";
+import { isOldNode } from "./isOldNode";
+
+if (isOldNode()) test.only("Skipping DockerDecoderStream tests in node < 18", () => { });
 
 describe("DockerDecoderStream", () => {
   it("parses stream, filtering the correct datatype", async () => {

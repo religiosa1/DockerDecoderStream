@@ -243,7 +243,7 @@ describe("DockerDecoder", () => {
       expect(result).toBeUndefined();
     });
 
-    it("resets decodes state, when 'close' is called", () => {
+    it("resets decoder state, when 'close' is called", () => {
       const data = [3, 2, 1, 6, 7];
       const type = "stdin";
       const frame = createDockerFrame(type, data);
@@ -281,7 +281,7 @@ describe("DockerDecoder", () => {
       expect(errorHandler).toBeCalledWith(expect.any(Error))
     });
 
-    it("negative buffer values in costructor results in an error", () => {
+    it("bad buffer size values in costructor result in an error", () => {
       expect(() => new DockerDecoder(9.75)).toThrow(TypeError);
       expect(() => new DockerDecoder(7)).toThrow(RangeError);
     });

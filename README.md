@@ -5,7 +5,7 @@ Fast and efficient and JS decoder for Docker log streams using
 Supports bring-your-own-buffer zero memmory allocation data copying between streams.
 
 Can work in a browser or on the backend.
-Streams API is supported on node 18+, bare-minimum eventemitter version can work in node 12.
+Streams API is supported on node 18+, bare-minimum eventemitter version can work in node 16.
 [Can I use Streams API?](https://caniuse.com/mdn-api_writablestream)
 
 8KiB minified. 
