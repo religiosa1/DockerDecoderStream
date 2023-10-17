@@ -5,7 +5,11 @@ import { isReadableByteStreamController } from "./isReadableByteStreamController
 export class DockerDecoderStream {
   #decoder = new DockerDecoder();
 
-  constructor(public defaultStreamType: "stdin" | "stdout" | "stderr" = "stdout") { }
+  constructor(public defaultStreamType: "stdin" | "stdout" | "stderr" = "stdout") {
+    if (defaultStreamType !== "stdin" && defaultStreamType !== "stdout" && defaultStreamType !== "stderr") {
+      throw new TypeError("Incorrect stream type");
+    }
+  }
 
   get readable(): ReadableStream<Uint8Array> {
     switch (this.defaultStreamType) {

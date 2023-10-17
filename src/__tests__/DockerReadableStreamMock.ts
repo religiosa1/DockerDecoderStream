@@ -9,13 +9,13 @@ type DockerFrame = [type: IOStreamType, payload: ArrayLike<number>];
 
 export const DockerReadableStreamMock = isOldNode()
   ? class { constructor() { } } as unknown as ReadableStream<Uint8Array> & {
-    new(frames: DockerFrame[]): ReadableStream<Uint8Array>
+    new(frames: Array<DockerFrame | Uint8Array>): ReadableStream<Uint8Array>
   }
   : class DockerReadableStreamMock extends ReadableStream<Uint8Array> {
     private readonly payload: Uint8Array;
     private pos = 0;
 
-    constructor(frames: DockerFrame[]) {
+    constructor(frames: Array<DockerFrame | Uint8Array>) {
       super({
         pull: (controller) => {
           try {
@@ -55,7 +55,7 @@ export const DockerReadableStreamMock = isOldNode()
 
       this.payload = concatUint8Arrays(
         frames
-          .map((frame) => createDockerFrame(...frame))
+          .map((frame) => frame instanceof Uint8Array ? frame : createDockerFrame(...frame))
       );
     }
   }
