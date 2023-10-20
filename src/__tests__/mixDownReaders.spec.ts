@@ -1,30 +1,17 @@
 import { IOStreamType } from "../DockerDecoder";
 import { DockerDecoderStream } from "../DockerDecoderStream";
 import { mixDownReaders } from "../mixDownReaders";
-import { DockerReadableStreamMock } from "./DockerReadableStreamMock";
+import { MockDockerReadableStream } from "./MockDockerReadableStream";
+import { MockReadeableStream } from "./MockReadableStream";
 import { isOldNode } from "./isOldNode";
 
 if (isOldNode()) test.only("Skipping mixDownReaders tests in node < 18", () => { });
 
 describe("mixDownReaders", () => {
-  class MockReader extends ReadableStream<string> {
-    constructor(...data: string[]) {
-      const dataClone = data.slice();
-      super({
-        pull(controller) {
-          if (!dataClone.length) {
-            return controller.close();
-          }
-          controller.enqueue(dataClone.shift());
-        }
-      })
-    }
-  }
-
   it("reads data from every reader", async () => {
-    const readerA = new MockReader("testA"); 
-    const readerB = new MockReader("testB1", "testB2"); 
-    const readerC = new MockReader("testC");
+    const readerA = new MockReadeableStream("testA"); 
+    const readerB = new MockReadeableStream("testB1", "testB2"); 
+    const readerC = new MockReadeableStream("testC");
     
     const mixDown = mixDownReaders({
       a: readerA.getReader(),
@@ -44,9 +31,9 @@ describe("mixDownReaders", () => {
   });
 
   it("reads data untill the last reader is closed", async () => {
-    const readerA = new MockReader(); 
-    const readerB = new MockReader("testB1", "testB2", "testB3", "testB4"); 
-    const readerC = new MockReader("testC");
+    const readerA = new MockReadeableStream(); 
+    const readerB = new MockReadeableStream("testB1", "testB2", "testB3", "testB4"); 
+    const readerC = new MockReadeableStream("testC");
     
     const mixDown = mixDownReaders({
       a: readerA.getReader(),
@@ -67,8 +54,8 @@ describe("mixDownReaders", () => {
 
   it("randomizes the queue, so one stream won't dominate the other", async () => {
     const nItems = 1000;
-    const readerA = new MockReader(...Array.from({ length: nItems }, (_,i) => i.toString()));
-    const readerB = new MockReader(...Array.from({ length: nItems }, (_,i) => i.toString()));
+    const readerA = new MockReadeableStream(...Array.from({ length: nItems }, (_,i) => i.toString()));
+    const readerB = new MockReadeableStream(...Array.from({ length: nItems }, (_,i) => i.toString()));
 
     const mixDown = mixDownReaders({
       a: readerA.getReader(),
@@ -95,7 +82,7 @@ describe("mixDownReaders", () => {
 
   describe("complete multiplexed decoding process a-to-z", () => {
     it("allows to get a ReadableStream for each IOStream in DockerStream", async () => {
-      const stream = new DockerReadableStreamMock([
+      const stream = new MockDockerReadableStream([
         ["stdout", [4, 5, 6]],
         ["stdin", [1, 2, 3]],
         ["stderr", [7, 8, 9]],

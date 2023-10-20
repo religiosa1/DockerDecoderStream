@@ -7,11 +7,11 @@ import { isOldNode } from "./isOldNode";
 type DockerFrame = [type: IOStreamType, payload: ArrayLike<number>];
 
 
-export const DockerReadableStreamMock = isOldNode()
+export const MockDockerReadableStream = isOldNode()
   ? class { constructor() { } } as unknown as ReadableStream<Uint8Array> & {
     new(frames: Array<DockerFrame | Uint8Array>): ReadableStream<Uint8Array>
   }
-  : class DockerReadableStreamMock extends ReadableStream<Uint8Array> {
+  : class MockDockerReadableStream extends ReadableStream<Uint8Array> {
     private readonly payload: Uint8Array;
     private pos = 0;
 

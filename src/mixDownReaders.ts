@@ -24,12 +24,15 @@ export async function* mixDownReaders<TKey extends string, T>(
       yield [key, payload] as const;
     }
   } while (promisesMap.size);
+}
 
-  function readWithTag(reader: ReadableStreamDefaultReader<T>, tag: TKey): Promise<TaggedReadResult<TKey, T>> {
-    return reader.read().then(({ value, done }) => {
-      return { done, value: [tag, value] as const };
-    });
-  }
+function readWithTag<TKey extends string, T>(
+  reader: ReadableStreamDefaultReader<T>, 
+  tag: TKey
+): Promise<TaggedReadResult<TKey, T>> {
+  return reader.read().then(({ value, done }) => {
+    return { done, value: [tag, value] as const };
+  });
 }
 
 function shuffle<T>(iterable: Iterable<T>): T[] {

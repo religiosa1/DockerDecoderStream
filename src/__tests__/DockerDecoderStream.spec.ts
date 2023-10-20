@@ -1,5 +1,5 @@
 import { DockerDecoderStream } from "../DockerDecoderStream";
-import { DockerReadableStreamMock } from "./DockerReadableStreamMock";
+import { MockDockerReadableStream } from "./MockDockerReadableStream";
 import { createDockerFrame } from "./createDockerFrame";
 import { isOldNode } from "./isOldNode";
 
@@ -7,7 +7,7 @@ if (isOldNode()) test.only("Skipping DockerDecoderStream tests in node < 18", ()
 
 describe("DockerDecoderStream", () => {
   it("parses stream, filtering the correct datatype", async () => {
-    const stream = new DockerReadableStreamMock([
+    const stream = new MockDockerReadableStream([
       ["stdout", [1, 2, 3, 4, 5]],
       ["stderr", [1, 2, 3, 4, 5]],
       ["stdout", [6, 7, 8, 9, 0]],
@@ -34,7 +34,7 @@ describe("DockerDecoderStream", () => {
     ["stdout" as const, [1, 2, 3, 4, 5, 6, 7, 8, 9, 0]],
     ["stderr" as const, [3, 2, 1, 6, 7]]
   ])("allows to set the default stream to process %p", async (streamName, expectedResult) => {
-    const stream = new DockerReadableStreamMock([
+    const stream = new MockDockerReadableStream([
       ["stdout", [1, 2, 3, 4, 5]],
       ["stdin", [3]],
       ["stderr", [3, 2, 1, 6, 7]],
@@ -77,7 +77,7 @@ describe("DockerDecoderStream", () => {
 
 
   it("allows to read directly from the desired stream", async () => {
-    const stream = new DockerReadableStreamMock([
+    const stream = new MockDockerReadableStream([
       ["stdout", [4, 5, 6]],
       ["stdin", [1, 2, 3]],
       ["stderr", [7, 8, 9]],
@@ -107,7 +107,7 @@ describe("DockerDecoderStream", () => {
     it("throws an error if writable stream is malformed", async () => {
       const badFrame = createDockerFrame("stdout", [4, 5, 6]);
       badFrame[0] = 321;
-      const stream =  new DockerReadableStreamMock([
+      const stream =  new MockDockerReadableStream([
         badFrame
       ]);
       const dockerStream = new DockerDecoderStream();
@@ -117,7 +117,7 @@ describe("DockerDecoderStream", () => {
     it("throws an error in reader if writableStream error was surpressed", async () => {
       const badFrame = createDockerFrame("stdout", [4, 5, 6]);
       badFrame[0] = 321;
-      const stream =  new DockerReadableStreamMock([
+      const stream =  new MockDockerReadableStream([
         badFrame
       ]);
       const dockerStream = new DockerDecoderStream();
