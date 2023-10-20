@@ -11,11 +11,11 @@ Streams API is supported on node 18+, bare-minimum eventemitter version can work
 8KiB minified. 
 Its only runtime dependency is [eventemitter3](https://github.com/primus/eventemitter3) to have isomorphic interface in node and browser.
 
-<!-- ## Installation
+## Installation
 
 ```sh
 npm install docker-decoder-stream
-``` -->
+```
 
 ## Usage
 
@@ -29,8 +29,8 @@ if (!response.body) {
   throw new Error();
 }
 const reader = response.body
-  .pipeThrough(new DockerDecoderStream())
-  .pipeThrough(new TextDecoderStream()) // By default reading "stdout"
+  .pipeThrough(new DockerDecoderStream()) // By default reading "stdout"
+  .pipeThrough(new TextDecoderStream())
   .getReader();
 
 for (; ;) {
@@ -73,6 +73,9 @@ for await (const [type, value] of mixDownReaders({ stdout, stderr })) {
   }
 }
 ```
+`mixDownReaders` combines output of multiple readers. If several readers are ready simultaneously, then
+it randomly picks one of their values, so we can fairly access their data, without one stream dominating
+over the other. 
 
 ### Sync/no-stream usage
 ```ts
@@ -100,6 +103,9 @@ decoder
   .on("data", (type, payload) => {
     // Do something with the Uint8Array content here
     if (type === "stdout") {
+      // You need to immediately syncroneously process the payload, otherwise it will be overwritten by the 
+      // next chunk of data. If you need to process the data in async fashion, you must copy the payload
+      // @example const data = payload.slice();
       const text = stdoutDecoder.decode(payload, { stream: true });
     }
     // Use separate decoders to prevent corruption of Unicode chars when they're spread across multiple chunks!
@@ -129,3 +135,9 @@ for (; ;) {
 decoder.close();
 ```
 
+## Contributing
+If you have any ideas or suggestions or want to report a bug, feel free to
+write in the issues section or create a PR.
+
+## License
+`docker-decoder-stream` is MIT licensed.
