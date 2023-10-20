@@ -14,7 +14,7 @@ export async function* mixDownReaders<TKey extends string, T>(
   );
 
   do {
-    const { done, value: [key, payload] } = await Promise.race(promisesMap.values());
+    const { done, value: [key, payload] } = await Promise.race(shuffle(promisesMap.values()));
     if (!done) {
       promisesMap.set(key, readWithTag(readers[key], key));
     } else {
@@ -30,4 +30,16 @@ export async function* mixDownReaders<TKey extends string, T>(
       return { done, value: [tag, value] as const };
     });
   }
+}
+
+function shuffle<T>(iterable: Iterable<T>): T[] {
+  const items = Array.from(iterable);
+
+  const shuffledItems: T[] = [];
+  while (items.length) {
+    const randomIndex = Math.floor(Math.random() * items.length);
+    const [item] = items.splice(randomIndex, 1);
+    shuffledItems.push(item);
+  }
+  return shuffledItems;
 }
