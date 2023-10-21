@@ -135,6 +135,19 @@ for (; ;) {
 decoder.close();
 ```
 
+## Rendering considerations
+
+During the initial load or if you have a large throughput in docker logs, you can easily overwhelm
+the browser with a huge number of rerenders, making the page unresponsive.
+
+To avoid that, tie the content updates to `requestAnimationFrame`, accumulating them in a buffer
+and applying them all at once at the current framerate.
+
+If you're using a reactive framework (and you most likely do), then it might be a good idea to omit reactivity 
+tools it provides and just to update target element's [textContent](https://developer.mozilla.org/en-US/docs/Web/API/Node/textContent) if you're rendering plain text logs, to decrease cost of an update even further. 
+
+See the provided [examples](./examples/) with implementation of such a buffer.
+
 ## Contributing
 If you have any ideas or suggestions or want to report a bug, feel free to
 write in the issues section or create a PR.
