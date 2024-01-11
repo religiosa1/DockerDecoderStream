@@ -1,15 +1,21 @@
 # Docker Logs Stream decoder
 
 Fast and efficient and JS decoder for Docker log streams using 
-[Streams API](https://developer.mozilla.org/en-US/docs/Web/API/Streams_API). 
+[Streams API](https://developer.mozilla.org/en-US/docs/Web/API/Streams_API) or
+regular EventStream.
+
+Uses TypedArray internally and is optimized for low memory consumption and performance. 
+Doesn't create any objects for GC besides what it is really necessary.
+
 Supports bring-your-own-buffer zero memmory allocation data copying between streams.
 
 Can work in a browser or on the backend.
-Streams API is supported on node 18+, bare-minimum eventemitter version can work in node 16.
+Web Streams API is supported on node 18+, bare-minimum eventemitter version can work in node 16.
 [Can I use Streams API?](https://caniuse.com/mdn-api_writablestream)
 
-8KiB minified. 
-Its only runtime dependency is [eventemitter3](https://github.com/primus/eventemitter3) to have isomorphic interface in node and browser.
+8KiB minified.
+Its only runtime dependency is [eventemitter3](https://github.com/primus/eventemitter3) 
+to have isomorphic events interface in nodejs and browser.
 
 ## Installation
 
@@ -41,8 +47,10 @@ for (; ;) {
   if (done) { break; }
 }
 
-// you can specify the stream you're interested in in constructor:
-const stderrStream = new DockerDecoderStream("stdin");
+// You can specify any other stream in the constructor, that will be used as `reader`
+const stderrStreamWithDefault = new DockerDecoderStream("stdin");
+// All of the oter streams are still accessible through their properties
+stderrStreamWithDefault.stderr // returns ReadableStream<Uint8Array> for stderr
 ```
 
 Some bright day we will be able to do:
@@ -64,11 +72,12 @@ const dockerStreamDecoder = new DockerDecoderStream();
 // specific IO streams from docker are available as getters on DockerDecoderStream
 const stdout = dockerStreamDecoder.stdout.pipeThrough(new TextDecoderStream("utf-8")).getReader();
 const stderr = dockerStreamDecoder.stderr.pipeThrough(new TextDecoderStream("utf-8")).getReader();
-response.body?.pipeTo(dockerStreamDecoder.writable);
+response.body?.pipeTo(dockerStreamDecoder.writable)
+  .catch(err => console.error("Error piping body:", err));
 
 // mixDownReaders helper provides an async iterator to get all of the chunks from multiple ReadableStreams
 for await (const [type, value] of mixDownReaders({ stdout, stderr })) {
-  if (type === "stdout") {
+  if (type === "stdout") { //< Type will match the name in the object provided in arguments
     console.log("here's your stdout value", value);
   }
 }
@@ -94,6 +103,7 @@ const text = new TextDecoder().decode(data);
 import { DockerDecoder } from "docker-decoder-stream";
 
 const decoder = new DockerDecoder();
+// Use separate TextDecoders for different streams to prevent corruption of Unicode chars!
 const stdoutDecoder = new TextDecoder("utf-8");
 const stderrDecoder = new TextDecoder("utf-8");
 
@@ -103,18 +113,18 @@ decoder
   .on("data", (type, payload) => {
     // Do something with the Uint8Array content here
     if (type === "stdout") {
-      // You need to immediately syncroneously process the payload, otherwise it will be overwritten by the 
+      // You need to immediately synchronously process the payload, otherwise it will be overwritten by the 
       // next chunk of data. If you need to process the data in async fashion, you must copy the payload
       // @example const data = payload.slice();
       const text = stdoutDecoder.decode(payload, { stream: true });
     }
-    // Use separate decoders to prevent corruption of Unicode chars when they're spread across multiple chunks!
     if (type === "stderr") {
       const text = stderrDecoder.decode(payload, { stream: true });
     }
   })
   .on("end", (type, payload) => {
-    // Decoder may produce a partially read frame, if it was aborted in the middle of the stream's body
+    // Decoder may produce a partially read frame, if it was aborted in the mid-chunk
+    // You can access it if here if you want.
     if (type === "stdout") {
       const text = stdoutDecoder.decode(payload, { stream: false });
     }
@@ -140,13 +150,15 @@ decoder.close();
 During the initial load or if you have a large throughput in docker logs, you can easily overwhelm
 the browser with a huge number of rerenders, making the page unresponsive.
 
-To avoid that, tie the content updates to `requestAnimationFrame`, accumulating them in a buffer
-and applying them all at once at the current framerate.
+To avoid that, tie the content updates to `requestAnimationFrame`, accumulating them in a some kind
+of a buffer and applying them all at once at the current framerate.
 
-If you're using a reactive framework (and you most likely do), then it might be a good idea to omit reactivity 
-tools it provides and just to update target element's [textContent](https://developer.mozilla.org/en-US/docs/Web/API/Node/textContent) if you're rendering plain text logs, to decrease cost of an update even further. 
+See the provided [examples](./examples/) for possible implementation of such a buffer.
 
-See the provided [examples](./examples/) with implementation of such a buffer.
+If you're rendering logs just as plain text inside of a reactive framework, it might be a good 
+idea to omit reactivity tools it provides and just to update target element's 
+[textContent](https://developer.mozilla.org/en-US/docs/Web/API/Node/textContent), to decrease cost 
+of updates even further. 
 
 ## Contributing
 If you have any ideas or suggestions or want to report a bug, feel free to
