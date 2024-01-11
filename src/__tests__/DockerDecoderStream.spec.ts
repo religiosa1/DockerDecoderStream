@@ -75,8 +75,7 @@ describe("DockerDecoderStream", () => {
     ).toThrow(TypeError);
   });
 
-
-  it("allows to read directly from the desired stream", async () => {
+  it("returns a reader the desired stream via dockerStream.<STREAM_NAME>", async () => {
     const stream = new MockDockerReadableStream([
       ["stdout", [4, 5, 6]],
       ["stdin", [1, 2, 3]],
@@ -103,11 +102,40 @@ describe("DockerDecoderStream", () => {
     expect(result).toEqual([7, 8, 9, 9, 8, 7]);
   });
 
-  describe("error handling",  () => {
+  describe("stream termination", () => {
+    it("ends when the incoming stream is read up to the end", async () => {
+      const stream = new MockDockerReadableStream([
+        ["stdout", [1, 2, 3, 4, 5]],
+        ["stdin", [3]],
+        ["stderr", [3, 2, 1, 6, 7]],
+        ["stdout", [6, 7, 8, 9, 0]],
+        ["stdin", [3, 3]],
+      ]);
+      const data = stream.pipeTo(new DockerDecoderStream().writable);
+      await expect(data).resolves.toBeUndefined();
+    });
+
+    it("closes the readers when the their stream is read up to the end", async () => {
+      const stream = new MockDockerReadableStream([
+        ["stdout", [1, 2, 3, 4, 5]],
+        ["stdin", [3]],
+      ]);
+      const reader = stream.pipeThrough(new DockerDecoderStream()).getReader();
+      for (; ;) {
+        const result = await reader.read();
+        if (result.done) {
+          break
+        }
+      }
+      await expect(reader.closed).resolves.toBeUndefined();
+    });
+  });
+
+  describe("error handling", () => {
     it("throws an error if writable stream is malformed", async () => {
       const badFrame = createDockerFrame("stdout", [4, 5, 6]);
       badFrame[0] = 321;
-      const stream =  new MockDockerReadableStream([
+      const stream = new MockDockerReadableStream([
         badFrame
       ]);
       const dockerStream = new DockerDecoderStream();
@@ -117,7 +145,7 @@ describe("DockerDecoderStream", () => {
     it("throws an error in reader if writableStream error was surpressed", async () => {
       const badFrame = createDockerFrame("stdout", [4, 5, 6]);
       badFrame[0] = 321;
-      const stream =  new MockDockerReadableStream([
+      const stream = new MockDockerReadableStream([
         badFrame
       ]);
       const dockerStream = new DockerDecoderStream();
@@ -128,6 +156,5 @@ describe("DockerDecoderStream", () => {
 
     it.todo("aborts the writetable stream on signal");
     it.todo("aborts the readable stream on signal");
-
   });
 });
