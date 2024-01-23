@@ -1,18 +1,19 @@
-# Docker Logs Stream decoder
+# Docker Stream decoder
 
-Fast and efficient and JS decoder for Docker log streams using 
+Fast and efficient and TS/JS decoder for Docker streams using 
 WebStreams API or EventEmitter.
 
 Can be used for displaying docker container's logs 
 [stream](https://docs.docker.com/engine/api/v1.43/#tag/Container/operation/ContainerAttach)
  in the follow mode in a browser, or parsing docker's `container.exec` output. 
 
-Uses TypedArray internally and is optimized for low memory consumption and performance. 
+Uses TypedArray internally as a buffer and is optimized for low memory consumption 
+and performance. 
 
 Supports bring-your-own-buffer zero memmory allocation data copying between streams.
 
 Can work in a browser or on the backend.
-[Web Streams API](https://developer.mozilla.org/en-US/docs/Web/API/Streams_API) is supported on 
+[Web Streams API](https://developer.mozilla.org/en-US/docs/Web/API/Streams_API) is supported in 
 [node 18+](https://nodejs.org/api/webstreams.html), bare-minimum eventemitter version can work 
 in node 16. [Can I use Streams API?](https://caniuse.com/mdn-api_writablestream)
 
@@ -82,7 +83,7 @@ const stderr = dockerStreamDecoder.stderr.pipeThrough(new TextDecoderStream("utf
 response.body?.pipeTo(dockerStreamDecoder.writable)
   .catch(err => console.error("Error piping body:", err));
 
-// mixDownReaders helper provides an async iterator to get all of the chunks from multiple ReadableStreams
+// `mixDownReaders` provides an async iterator to get all of the chunks from multiple ReadableStreams
 for await (const [type, value] of mixDownReaders({ stdout, stderr })) {
   if (type === "stdout") { //< Type will match the name in the object provided in arguments
     console.log("here's your stdout value", value);
@@ -111,8 +112,9 @@ decoder
   .on("data", (type, payload) => {
     // Do something with the Uint8Array content here
     if (type === "stdout") {
-      // You need to immediately synchronously process the payload, otherwise it will be overwritten by the 
-      // next chunk of data. If you need to process the data in async fashion, you must copy the payload
+      // You need to immediately synchronously process the payload, otherwise it will be overwritten
+      // by the next chunk of data. If you need to process the data in async fashion, you must 
+      // copy the payload.
       // @example const data = payload.slice();
       const text = stdoutDecoder.decode(payload, { stream: true });
     }

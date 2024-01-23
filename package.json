@@ -1,12 +1,16 @@
 {
   "name": "docker-decoder-stream",
-  "version": "1.0.0",
-  "description": "JS/TS decoder for Docker logs stream",
+  "version": "0.0.1",
+  "description": "TS/JS decoder for Docker streams (logs and container attach)",
   "author": "Viacheslav Azarov",
   "license": "MIT",
   "scripts": {
     "build": "tsup --dts",
     "test": "jest"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/religiosa1/DockerDecoderStream"
   },
   "type": "commonjs",
   "main": "./dist/index.js",
