@@ -1,21 +1,24 @@
 # Docker Logs Stream decoder
 
 Fast and efficient and JS decoder for Docker log streams using 
-[Streams API](https://developer.mozilla.org/en-US/docs/Web/API/Streams_API) or
-regular EventStream.
+WebStreams API or EventEmitter.
+
+Can be used for displaying docker container's logs 
+[stream](https://docs.docker.com/engine/api/v1.43/#tag/Container/operation/ContainerAttach)
+ in the follow mode in a browser, or parsing docker's `container.exec` output. 
 
 Uses TypedArray internally and is optimized for low memory consumption and performance. 
-Doesn't create any objects for GC besides what it is really necessary.
 
 Supports bring-your-own-buffer zero memmory allocation data copying between streams.
 
 Can work in a browser or on the backend.
-Web Streams API is supported on node 18+, bare-minimum eventemitter version can work in node 16.
-[Can I use Streams API?](https://caniuse.com/mdn-api_writablestream)
+[Web Streams API](https://developer.mozilla.org/en-US/docs/Web/API/Streams_API) is supported on 
+[node 18+](https://nodejs.org/api/webstreams.html), bare-minimum eventemitter version can work 
+in node 16. [Can I use Streams API?](https://caniuse.com/mdn-api_writablestream)
 
 8KiB minified.
 Its only runtime dependency is [eventemitter3](https://github.com/primus/eventemitter3) 
-to have isomorphic events interface in nodejs and browser.
+to have the same isomorphic events interface in nodejs and browser.
 
 ## Installation
 
@@ -27,11 +30,13 @@ npm install docker-decoder-stream
 
 ### Stream usage
 
+Extracting single IOStream (i.e. stdout) from a docker stream.
+
 ```ts
 import { DockerDecoderStream } from "docker-decoder-stream";
 
 const response = await fetch("/v1.43/containers/{id}/logs?follow=true");
-if (!response.body) {
+if (!response.ok || !response.body) {
   throw new Error();
 }
 const reader = response.body
@@ -61,11 +66,13 @@ But for now this is blocked in chrome: https://bugs.chromium.org/p/chromium/issu
 
 ### Multiplexed streams usage
 
+Extracting all of the available IOStreams from a docker stream. 
+
 ```ts
 import { DockerDecoderStream, mixDownReaders } from "docker-decoder-stream";
 
 const response = await fetch("/v1.43/containers/{id}/logs?follow=true");
-if (!response.body) {
+if (!response.ok || !response.body) {
   throw new Error();
 }
 const dockerStreamDecoder = new DockerDecoderStream();
@@ -86,18 +93,9 @@ for await (const [type, value] of mixDownReaders({ stdout, stderr })) {
 it randomly picks one of their values, so we can fairly access their data, without one stream dominating
 over the other. 
 
-### Sync/no-stream usage
-```ts
-import { DockerDecoder } from "docker-decoder-stream";
+### Barebone eventemitter usage
 
-const dockerLogBlob = await fetch("/v1.43/containers/{id}/logs")
-  .then(response => response.blob());
-
-const data = new DockerDecoder().decode(dockerLogBlob);
-const text = new TextDecoder().decode(data);
-```
-
-### Barebone eventemitter usage (when ReadableStream isn't availabe: old node or custom use-cases)
+When ReadableStream isn't availabe: old nodejs or custom use-cases via `DockerDecoder` class.
 
 ```ts
 import { DockerDecoder } from "docker-decoder-stream";
@@ -145,12 +143,26 @@ for (; ;) {
 decoder.close();
 ```
 
+### Sync usage
+
+`DockerDecoder` class also provides sync interface, if you have your whole stream in a blob.
+
+```ts
+import { DockerDecoder } from "docker-decoder-stream";
+
+const dockerLogBlob = await fetch("/v1.43/containers/{id}/logs")
+  .then(response => response.blob());
+
+const data = new DockerDecoder().decode(dockerLogBlob);
+const text = new TextDecoder().decode(data);
+```
+
 ## Rendering considerations
 
 During the initial load or if you have a large throughput in docker logs, you can easily overwhelm
 the browser with a huge number of rerenders, making the page unresponsive.
 
-To avoid that, tie the content updates to `requestAnimationFrame`, accumulating them in a some kind
+To avoid that, tie content updates to `requestAnimationFrame`, accumulating them in some kind
 of a buffer and applying them all at once at the current framerate.
 
 See the provided [examples](./examples/) for possible implementation of such a buffer.
